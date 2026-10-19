@@ -1,0 +1,395 @@
+{
+  "info": {
+    "name": "Pinspire API v1",
+    "description": "Koleksi untuk menguji seluruh endpoint Pinspire API.\n\nCara pakai:\n1. Jalankan `php artisan serve`.\n2. Buka folder \"1. Auth\" jalankan \"Login (demo)\" -> token otomatis tersimpan.\n3. Jalankan request lain (token dipakai otomatis).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "pin_id", "value": "1" },
+    { "key": "board_id", "value": "1" },
+    { "key": "username", "value": "demo" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Budi Santoso\",\n  \"username\": \"budi\",\n  \"email\": \"budi@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"device_name\": \"postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Login (demo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data && json.data.access_token) {",
+                  "    pm.collectionVariables.set('token', json.data.access_token);",
+                  "    console.log('Token tersimpan:', json.data.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@pinspire.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Pins",
+      "item": [
+        {
+          "name": "Feed (list)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/pins?per_page=15&page=1",
+              "host": ["{{base_url}}"],
+              "path": ["pins"],
+              "query": [
+                { "key": "per_page", "value": "15" },
+                { "key": "page", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/pins/{{pin_id}}", "host": ["{{base_url}}"], "path": ["pins", "{{pin_id}}"] }
+          }
+        },
+        {
+          "name": "Upload (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": [] },
+                { "key": "title", "value": "Sudut Baca Minimalis", "type": "text" },
+                { "key": "description", "value": "Kursi rotan + lampu hangat.", "type": "text" }
+              ]
+            },
+            "url": { "raw": "{{base_url}}/pins", "host": ["{{base_url}}"], "path": ["pins"] }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Judul Baru\",\n  \"description\": \"Deskripsi baru\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/pins/{{pin_id}}", "host": ["{{base_url}}"], "path": ["pins", "{{pin_id}}"] }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/pins/{{pin_id}}", "host": ["{{base_url}}"], "path": ["pins", "{{pin_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Search",
+      "item": [
+        {
+          "name": "Cari pin",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/search?q=dekorasi",
+              "host": ["{{base_url}}"],
+              "path": ["search"],
+              "query": [{ "key": "q", "value": "dekorasi" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Boards",
+      "item": [
+        {
+          "name": "Board saya",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/boards", "host": ["{{base_url}}"], "path": ["boards"] }
+          }
+        },
+        {
+          "name": "Buat board",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) { pm.collectionVariables.set('board_id', json.data.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dekorasi Rumah\",\n  \"description\": \"Koleksi ide interior.\",\n  \"is_private\": false\n}"
+            },
+            "url": { "raw": "{{base_url}}/boards", "host": ["{{base_url}}"], "path": ["boards"] }
+          }
+        },
+        {
+          "name": "Detail board",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/boards/{{board_id}}", "host": ["{{base_url}}"], "path": ["boards", "{{board_id}}"] }
+          }
+        },
+        {
+          "name": "Update board",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rumah & Interior\",\n  \"is_private\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/boards/{{board_id}}", "host": ["{{base_url}}"], "path": ["boards", "{{board_id}}"] }
+          }
+        },
+        {
+          "name": "Hapus board",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/boards/{{board_id}}", "host": ["{{base_url}}"], "path": ["boards", "{{board_id}}"] }
+          }
+        },
+        {
+          "name": "Pin di board",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/boards/{{board_id}}/pins", "host": ["{{base_url}}"], "path": ["boards", "{{board_id}}", "pins"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Saves",
+      "item": [
+        {
+          "name": "Simpan pin ke board",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"board_id\": {{board_id}}\n}" },
+            "url": { "raw": "{{base_url}}/pins/{{pin_id}}/save", "host": ["{{base_url}}"], "path": ["pins", "{{pin_id}}", "save"] }
+          }
+        },
+        {
+          "name": "Hapus pin dari board",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"board_id\": {{board_id}}\n}" },
+            "url": { "raw": "{{base_url}}/pins/{{pin_id}}/save", "host": ["{{base_url}}"], "path": ["pins", "{{pin_id}}", "save"] }
+          }
+        },
+        {
+          "name": "Pin tersimpan saya",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/saves", "host": ["{{base_url}}"], "path": ["saves"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Profile",
+      "item": [
+        {
+          "name": "Profil publik",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/users/{{username}}", "host": ["{{base_url}}"], "path": ["users", "{{username}}"] }
+          }
+        },
+        {
+          "name": "Pin milik user",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/users/{{username}}/pins", "host": ["{{base_url}}"], "path": ["users", "{{username}}", "pins"] }
+          }
+        },
+        {
+          "name": "Board milik user",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/users/{{username}}/boards", "host": ["{{base_url}}"], "path": ["users", "{{username}}", "boards"] }
+          }
+        },
+        {
+          "name": "Profil saya",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/profile", "host": ["{{base_url}}"], "path": ["profile"] }
+          }
+        },
+        {
+          "name": "Update profil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo User Baru\",\n  \"bio\": \"Bio baru.\",\n  \"website\": \"https://example.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/profile", "host": ["{{base_url}}"], "path": ["profile"] }
+          }
+        },
+        {
+          "name": "Upload avatar (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "avatar", "type": "file", "src": [] }]
+            },
+            "url": { "raw": "{{base_url}}/profile/avatar", "host": ["{{base_url}}"], "path": ["profile", "avatar"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Settings",
+      "item": [
+        {
+          "name": "Lihat settings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/settings", "host": ["{{base_url}}"], "path": ["settings"] }
+          }
+        },
+        {
+          "name": "Update settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preferences\": {\n    \"email_notifications\": false,\n    \"push_notifications\": true\n  }\n}"
+            },
+            "url": { "raw": "{{base_url}}/settings", "host": ["{{base_url}}"], "path": ["settings"] }
+          }
+        },
+        {
+          "name": "Ganti password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"password\",\n  \"password\": \"passwordBaru123\",\n  \"password_confirmation\": \"passwordBaru123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/settings/password", "host": ["{{base_url}}"], "path": ["settings", "password"] }
+          }
+        }
+      ]
+    }
+  ]
+}

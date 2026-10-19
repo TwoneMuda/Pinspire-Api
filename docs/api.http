@@ -1,0 +1,307 @@
+# Pinspire API v1 — file uji manual
+#
+# Cara pakai:
+#   VS Code  : install ekstensi "REST Client" (humao.rest-client), lalu klik "Send Request"
+#              di atas setiap blok ###.
+#   JetBrains: file .http dikenali otomatis (IntelliJ / PhpStorm).
+#
+# Urutan yang disarankan: jalankan "Login (demo)" dulu supaya {{token}} terisi.
+
+@baseUrl = http://127.0.0.1:8000/api/v1
+@accept = application/json
+
+### ============================================================
+### 1. AUTH
+### ============================================================
+
+### Register (ganti email kalau sudah dipakai)
+# @name register
+POST {{baseUrl}}/auth/register
+Accept: {{accept}}
+Content-Type: application/json
+
+{
+  "name": "Budi Santoso",
+  "username": "budi",
+  "email": "budi@example.com",
+  "password": "password123",
+  "password_confirmation": "password123",
+  "device_name": "rest-client"
+}
+
+### Login (demo) — jalankan ini dulu untuk mengambil token
+# @name login
+POST {{baseUrl}}/auth/login
+Accept: {{accept}}
+Content-Type: application/json
+
+{
+  "email": "demo@pinspire.test",
+  "password": "password",
+  "device_name": "rest-client"
+}
+
+### Token otomatis diambil dari respons login di atas
+@token = {{login.response.body.$.data.access_token}}
+
+### Me (butuh token)
+GET {{baseUrl}}/auth/me
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+### Logout (butuh token)
+POST {{baseUrl}}/auth/logout
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+
+### ============================================================
+### 2. PINS (publik, token opsional untuk is_saved)
+### ============================================================
+
+### Feed pins
+GET {{baseUrl}}/pins?per_page=5&page=1
+Accept: {{accept}}
+
+### Feed pins + filter kata kunci
+GET {{baseUrl}}/pins?search=dekorasi
+Accept: {{accept}}
+
+### Detail pin
+GET {{baseUrl}}/pins/1
+Accept: {{accept}}
+
+### Detail pin sebagai user login (isi is_saved)
+GET {{baseUrl}}/pins/1
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+### Upload pin (multipart) — ganti path file gambar
+POST {{baseUrl}}/pins
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----PinspireBoundary
+
+------PinspireBoundary
+Content-Disposition: form-data; name="title"
+
+Sudut Baca Minimalis
+------PinspireBoundary
+Content-Disposition: form-data; name="description"
+
+Kursi rotan + lampu hangat.
+------PinspireBoundary
+Content-Disposition: form-data; name="image"; filename="contoh.jpg"
+Content-Type: image/jpeg
+
+< ./contoh.jpg
+------PinspireBoundary--
+
+### Update pin (JSON)
+PUT {{baseUrl}}/pins/1
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Judul Baru",
+  "description": "Deskripsi baru"
+}
+
+### Hapus pin
+# DELETE {{baseUrl}}/pins/1
+# Accept: {{accept}}
+# Authorization: Bearer {{token}}
+
+
+### ============================================================
+### 3. SEARCH
+### ============================================================
+
+### Cari pin (wajib kirim ?q=)
+GET {{baseUrl}}/search?q=dekorasi
+Accept: {{accept}}
+
+
+### ============================================================
+### 4. BOARDS
+### ============================================================
+
+### Daftar board milik saya
+GET {{baseUrl}}/boards
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+### Buat board
+# @name createBoard
+POST {{baseUrl}}/boards
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Dekorasi Rumah",
+  "description": "Koleksi ide interior.",
+  "is_private": false
+}
+
+### Id board yang baru dibuat
+@boardId = {{createBoard.response.body.$.data.id}}
+
+### Detail board
+GET {{baseUrl}}/boards/{{boardId}}
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+### Update board
+PUT {{baseUrl}}/boards/{{boardId}}
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Rumah & Interior",
+  "is_private": true
+}
+
+### Pin di dalam board
+GET {{baseUrl}}/boards/{{boardId}}/pins
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+### Hapus board
+# DELETE {{baseUrl}}/boards/{{boardId}}
+# Accept: {{accept}}
+# Authorization: Bearer {{token}}
+
+
+### ============================================================
+### 5. SAVES (simpan / unsave)
+### ============================================================
+
+### Simpan pin ke board
+POST {{baseUrl}}/pins/1/save
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "board_id": {{boardId}}
+}
+
+### Hapus pin dari board
+DELETE {{baseUrl}}/pins/1/save
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "board_id": {{boardId}}
+}
+
+### Daftar pin yang saya simpan
+GET {{baseUrl}}/saves
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+
+### ============================================================
+### 6. PROFILE
+### ============================================================
+
+### Profil publik (pakai username)
+GET {{baseUrl}}/users/demo
+Accept: {{accept}}
+
+### Pin milik user
+GET {{baseUrl}}/users/demo/pins
+Accept: {{accept}}
+
+### Board milik user
+GET {{baseUrl}}/users/demo/boards
+Accept: {{accept}}
+
+### Profil saya
+GET {{baseUrl}}/profile
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+### Update profil
+PUT {{baseUrl}}/profile
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Demo User Baru",
+  "bio": "Bio baru.",
+  "website": "https://example.com"
+}
+
+### Upload avatar (multipart) — ganti path file
+POST {{baseUrl}}/profile/avatar
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----PinspireBoundary
+
+------PinspireBoundary
+Content-Disposition: form-data; name="avatar"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+------PinspireBoundary--
+
+
+### ============================================================
+### 7. SETTINGS
+### ============================================================
+
+### Lihat settings
+GET {{baseUrl}}/settings
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+
+### Update settings
+PUT {{baseUrl}}/settings
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "preferences": {
+    "email_notifications": false,
+    "push_notifications": true
+  }
+}
+
+### Ganti password (hati-hati: mencabut token lain)
+PUT {{baseUrl}}/settings/password
+Accept: {{accept}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "current_password": "password",
+  "password": "passwordBaru123",
+  "password_confirmation": "passwordBaru123"
+}
+
+
+### ============================================================
+### 8. CONTOH ERROR (untuk memastikan format error konsisten)
+### ============================================================
+
+### 401 — tanpa token
+GET {{baseUrl}}/auth/me
+Accept: {{accept}}
+
+### 404 — pin tidak ada
+GET {{baseUrl}}/pins/999999
+Accept: {{accept}}
+
+### 422 — login tanpa field
+POST {{baseUrl}}/auth/login
+Accept: {{accept}}
+Content-Type: application/json
+
+{}
