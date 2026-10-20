@@ -24,6 +24,8 @@ class SaveTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.board.id', $board->id)
+            ->assertJsonPath('data.board.pins_count', 1)
+            ->assertJsonPath('data.board.pin_ids', [$pin->id])
             ->assertJsonPath('data.pin.id', $pin->id);
 
         $this->assertDatabaseHas('saves', [

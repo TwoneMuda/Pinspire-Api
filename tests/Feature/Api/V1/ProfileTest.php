@@ -76,7 +76,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create(['avatar' => null]);
 
         $response = $this->actingAs($user, 'sanctum')->post('/api/v1/profile/avatar', [
-            'avatar' => UploadedFile::fake()->image('avatar.jpg', 300, 300),
+            'avatar' => $this->fakePng('avatar.png', 300, 300),
         ], ['Accept' => 'application/json']);
 
         $response->assertOk()->assertJsonPath('success', true);

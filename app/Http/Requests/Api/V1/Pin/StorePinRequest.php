@@ -23,9 +23,16 @@ class StorePinRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'image' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'image' => ['required_without:image_url', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'image_url' => ['required_without:image', 'nullable', 'url', 'max:2048'],
             'title' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'vibe' => ['nullable', 'string', 'max:50'],
+            'tags' => ['nullable', 'array', 'max:10'],
+            'tags.*' => ['string', 'max:30'],
+            'palette' => ['nullable', 'array', 'max:5'],
+            'palette.*' => ['integer', 'min:0'],
             'source_url' => ['nullable', 'url', 'max:2048'],
         ];
     }

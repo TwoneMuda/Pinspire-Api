@@ -15,10 +15,23 @@ Semua respons berformat **JSON** dengan struktur yang konsisten.
 | Header wajib | `Accept: application/json` |
 | Header auth | `Authorization: Bearer <access_token>` |
 | Upload file | `Content-Type: multipart/form-data` |
+| Media publik | `GET http://127.0.0.1:8000/media/{path}` |
+| CORS | Diizinkan untuk `api/*`, `sanctum/csrf-cookie`, dan `media/*` |
 
-> **Penting (Flutter):** URL gambar dibangun dari `APP_URL` pada file `.env`.
+> **Penting (Flutter / Web):** URL gambar dan avatar dibangun dari `APP_URL` pada file `.env`
+> dan disajikan melalui route `GET /media/{path}`, bukan lewat symlink `/storage`.
+> Route media mengirim header CORS yang sama dengan API sehingga gambar dapat dimuat
+> dari origin Flutter Web (mis. `http://127.0.0.1:8080`).
 > Saat testing dengan `php artisan serve --port=8123`, set `APP_URL=http://127.0.0.1:8123`
 > agar `image_url` / `avatar_url` dapat diakses.
+
+### Autentikasi opsional pada endpoint publik
+
+Endpoint baca publik (`/pins`, `/pins/{pin}`, `/search`, `/boards/{board}`,
+`/users/...`) tetap dapat diakses tanpa token. Bila request menyertakan
+`Authorization: Bearer <access_token>`, server memakai token tersebut untuk
+mengisi data khusus viewer: `is_saved`, `is_liked`, `is_following`, serta akses
+board privat milik sendiri.
 
 ---
 
@@ -140,17 +153,21 @@ Semua respons berformat **JSON** dengan struktur yang konsisten.
   "name": "Demo User",
   "username": "demo",
   "email": "demo@pinspire.test",
-  "avatar_url": "http://127.0.0.1:8000/storage/avatars/abc.jpg",
+  "avatar_url": "http://127.0.0.1:8000/media/avatars/abc.jpg",
   "bio": "Suka mengoleksi ide desain.",
   "website": "https://example.com",
   "pins_count": 8,
   "boards_count": 3,
+  "followers_count": 2,
+  "following_count": 3,
+  "is_following": false,
   "created_at": "2026-10-18T10:00:00.000000Z"
 }
 ```
 
 > Field `email` hanya muncul saat: (a) respons register/login, (b) `GET /auth/me`,
 > (c) `GET /profile`, (d) profil milik user yang sedang login.
+> `is_following` bernilai `true` bila user yang sedang login mengikuti user ini.
 
 ### Pin
 
@@ -159,19 +176,28 @@ Semua respons berformat **JSON** dengan struktur yang konsisten.
   "id": 26,
   "title": "Ide Dekorasi Ruang Tamu",
   "description": "Inspirasi warna netral.",
-  "image_url": "http://127.0.0.1:8000/storage/pins/demo-abc.jpg",
+  "category": "Interior",
+  "vibe": "Calm",
+  "tags": ["minimalis", "ruang", "hangat"],
+  "palette": [4292520375, 4287467631, 4282533436],
+  "image_url": "http://127.0.0.1:8000/media/pins/demo-abc.jpg",
   "image_width": 800,
   "image_height": 1200,
   "source_url": "https://example.com/sumber",
   "saves_count": 12,
+  "likes_count": 45,
+  "comments_count": 6,
   "is_saved": false,
+  "is_liked": false,
   "user": { "...User..." },
   "created_at": "2026-10-18T10:05:00.000000Z",
   "updated_at": "2026-10-18T10:05:00.000000Z"
 }
 ```
 
-> `is_saved` bernilai `true` jika user yang sedang login sudah menyimpan pin ini.
+> `is_saved` / `is_liked` bernilai `true` jika user yang sedang login sudah
+> menyimpan / menyukai pin ini. `palette` berisi integer ARGB 32 bit
+> (`0xAARRGGBB`). `tags` maksimal 10 item.
 
 ### Board
 
@@ -182,13 +208,18 @@ Semua respons berformat **JSON** dengan struktur yang konsisten.
   "slug": "dekorasi-rumah",
   "description": "Koleksi ide interior.",
   "is_private": false,
-  "cover_image_url": "http://127.0.0.1:8000/storage/pins/demo-abc.jpg",
+  "cover_image_url": "http://127.0.0.1:8000/media/pins/demo-abc.jpg",
   "pins_count": 5,
+  "pin_ids": [26, 27, 28, 29, 30],
   "user": { "...User..." },
   "created_at": "2026-10-18T10:10:00.000000Z",
   "updated_at": "2026-10-18T10:10:00.000000Z"
 }
 ```
+
+> `pin_ids` hanya dikirim ketika relasi `pins` di-*eager load* (daftar board,
+> detail board, board milik user, dan respons simpan pin). Gunakan field ini
+> untuk menandai pin yang sudah tersimpan di board pada UI.
 
 ### Save
 
@@ -198,6 +229,64 @@ Semua respons berformat **JSON** dengan struktur yang konsisten.
   "board": { "...Board..." },
   "pin": { "...Pin..." },
   "created_at": "2026-10-18T10:15:00.000000Z"
+}
+```
+
+### Comment
+
+```json
+{
+  "id": 18,
+  "pin_id": 26,
+  "text": "Sudut ini terasa tenang. Suka sekali.",
+  "user": { "...User..." },
+  "created_at": "2026-10-18T10:20:00.000000Z"
+}
+```
+
+### Notification
+
+```json
+{
+  "id": 11,
+  "type": "comment",
+  "title": "Alya Putri mengomentari pinmu",
+  "body": "Sudut ini terasa tenang. Suka sekali.",
+  "target_type": "pin",
+  "target_id": 26,
+  "image_url": "http://127.0.0.1:8000/media/pins/demo-abc.jpg",
+  "is_read": false,
+  "actor": { "...User..." },
+  "created_at": "2026-10-18T10:20:00.000000Z"
+}
+```
+
+> `type`: `like`, `comment`, `follow`, `save`, atau `message`.
+> `target_type`: `pin` atau `user`; `target_id` adalah ID numerik.
+
+### Message
+
+```json
+{
+  "id": 5,
+  "body": "Halo! Aku mengumpulkan referensi warna hangat.",
+  "mine": false,
+  "read_at": null,
+  "sender": { "...User..." },
+  "created_at": "2026-10-18T10:25:00.000000Z"
+}
+```
+
+### Conversation
+
+Daftar percakapan **tidak** dipaginasi; setiap item berisi lawan bicara,
+pesan terakhir, dan jumlah pesan belum dibaca.
+
+```json
+{
+  "user": { "...User..." },
+  "last_message": { "...Message..." },
+  "unread_count": 2
 }
 ```
 
@@ -296,7 +385,7 @@ Semua respons berformat **JSON** dengan struktur yang konsisten.
       "name": "Demo User",
       "username": "demo",
       "email": "demo@pinspire.test",
-      "avatar_url": "http://127.0.0.1:8000/storage/avatars/demo.jpg",
+      "avatar_url": "http://127.0.0.1:8000/media/avatars/demo.jpg",
       "bio": "Akun demo Pinspire.",
       "website": null,
       "pins_count": 8,
@@ -374,9 +463,11 @@ Menghapus token yang sedang dipakai.
 
 | Param | Default | Keterangan |
 | --- | --- | --- |
-| `search` | – | filter judul/deskripsi |
+| `search` | – | filter judul, deskripsi, kategori, vibe, dan tags |
 | `per_page` | 15 | 1–50 |
 | `page` | 1 | halaman |
+
+> Kirim Bearer token (opsional) agar `is_saved` dan `is_liked` sesuai user.
 
 **Response `200`**
 
@@ -389,7 +480,7 @@ Menghapus token yang sedang dipakai.
       "id": 26,
       "title": "Ide Dekorasi Ruang Tamu",
       "description": "Inspirasi warna netral.",
-      "image_url": "http://127.0.0.1:8000/storage/pins/demo-abc.jpg",
+      "image_url": "http://127.0.0.1:8000/media/pins/demo-abc.jpg",
       "image_width": 800,
       "image_height": 1200,
       "source_url": null,
@@ -438,7 +529,7 @@ Menghapus token yang sedang dipakai.
     "id": 26,
     "title": "Ide Dekorasi Ruang Tamu",
     "description": "Inspirasi warna netral.",
-    "image_url": "http://127.0.0.1:8000/storage/pins/demo-abc.jpg",
+    "image_url": "http://127.0.0.1:8000/media/pins/demo-abc.jpg",
     "image_width": 800,
     "image_height": 1200,
     "source_url": null,
@@ -468,9 +559,14 @@ Menghapus token yang sedang dipakai.
 
 | Field | Tipe | Wajib | Aturan |
 | --- | --- | --- | --- |
-| `image` | file | ya | jpg/jpeg/png/webp/gif, maks. 5 MB, harus gambar valid |
+| `image` | file | salah satu | jpg/jpeg/png/webp/gif, maks. 5 MB, harus gambar valid. Wajib jika `image_url` kosong |
+| `image_url` | string | salah satu | URL gambar eksternal, maks. 2048. Wajib jika `image` kosong |
 | `title` | string | tidak | maks. 255 |
 | `description` | string | tidak | maks. 1000 |
+| `category` | string | tidak | maks. 50 (mis. `Interior`, `Travel`) |
+| `vibe` | string | tidak | maks. 50 (mis. `Calm`, `Fresh`) |
+| `tags` | array | tidak | maks. 10 string, tiap tag maks. 30 |
+| `palette` | array | tidak | maks. 5 integer ARGB (`0xAARRGGBB`) |
 | `source_url` | string | tidak | URL valid, maks. 2048 |
 
 **Response `201`**
@@ -483,12 +579,19 @@ Menghapus token yang sedang dipakai.
     "id": 41,
     "title": "Sudut Baca Minimalis",
     "description": "Kursi rotan + lampu hangat.",
-    "image_url": "http://127.0.0.1:8000/storage/pins/AbC123.jpg",
+    "category": "Interior",
+    "vibe": "Calm",
+    "tags": ["minimalis", "membaca"],
+    "palette": [4292520375, 4287467631, 4282533436],
+    "image_url": "http://127.0.0.1:8000/media/pins/AbC123.jpg",
     "image_width": 1080,
     "image_height": 1350,
     "source_url": null,
     "saves_count": 0,
+    "likes_count": 0,
+    "comments_count": 0,
     "is_saved": false,
+    "is_liked": false,
     "user": { "...User..." },
     "created_at": "2026-10-19T11:40:00.000000Z",
     "updated_at": "2026-10-19T11:40:00.000000Z"
@@ -523,8 +626,17 @@ kirim `_method=PUT` (method spoofing) karena multipart tidak mendukung PUT langs
 _method=PUT
 title=Judul Baru
 description=Deskripsi baru
+category=Travel
+vibe=Fresh
+tags[]=jalan-jalan
+tags[]=pantai
 image=<file>
 ```
+
+Field yang sama dengan upload (`title`, `description`, `category`, `vibe`,
+`tags`, `palette`, `source_url`, `image`, `image_url`) dapat dikirim sebagian.
+Mengirim `image_url` akan menghapus file gambar lama; mengirim `image` akan
+mengganti file dan mengosongkan `image_url`.
 
 **Response `200`**
 
@@ -566,7 +678,9 @@ image=<file>
 
 ### 7.1 Cari Pin
 
-`GET /api/v1/search` — publik
+`GET /api/v1/search` — publik (opsional login untuk `is_saved` / `is_liked`)
+
+Pencarian mencocokkan **judul, deskripsi, kategori, vibe, dan tags**.
 
 **Query params**
 
@@ -635,8 +749,9 @@ GET /api/v1/search?q=dekorasi&per_page=15&page=1
       "slug": "dekorasi-rumah",
       "description": "Koleksi ide interior.",
       "is_private": false,
-      "cover_image_url": "http://127.0.0.1:8000/storage/pins/demo-abc.jpg",
+      "cover_image_url": "http://127.0.0.1:8000/media/pins/demo-abc.jpg",
       "pins_count": 5,
+      "pin_ids": [26, 27, 28, 29, 30],
       "user": { "...User..." },
       "created_at": "2026-10-18T10:10:00.000000Z",
       "updated_at": "2026-10-18T10:10:00.000000Z"
@@ -692,6 +807,7 @@ GET /api/v1/search?q=dekorasi&per_page=15&page=1
     "is_private": false,
     "cover_image_url": null,
     "pins_count": 0,
+    "pin_ids": [],
     "user": { "...User..." },
     "created_at": "2026-10-19T11:45:00.000000Z",
     "updated_at": "2026-10-19T11:45:00.000000Z"
@@ -908,7 +1024,7 @@ Board privat hanya untuk pemilik. Pin diurutkan dari yang terbaru disimpan.
         "slug": "dekorasi-rumah",
         "description": "Koleksi ide interior.",
         "is_private": false,
-        "cover_image_url": "http://127.0.0.1:8000/storage/pins/demo-abc.jpg",
+        "cover_image_url": "http://127.0.0.1:8000/media/pins/demo-abc.jpg",
         "pins_count": 5,
         "user": { "...User..." },
         "created_at": "2026-10-18T10:10:00.000000Z",
@@ -1100,13 +1216,49 @@ Board privat disembunyikan kecuali milik user yang login.
     "name": "Demo User",
     "username": "demo",
     "email": "demo@pinspire.test",
-    "avatar_url": "http://127.0.0.1:8000/storage/avatars/xyz.jpg",
+    "avatar_url": "http://127.0.0.1:8000/media/avatars/xyz.jpg",
     "bio": "Akun demo Pinspire.",
     "website": null,
     "pins_count": 8,
     "boards_count": 3,
     "created_at": "2026-10-18T10:00:00.000000Z"
   }
+}
+```
+
+---
+
+### 10.7 Hapus Avatar
+
+`DELETE /api/v1/profile/avatar` — **auth**
+
+Menghapus file avatar dari disk publik dan mengosongkan `avatar_url`.
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Avatar removed successfully.",
+  "data": { "...User..." }
+}
+```
+
+---
+
+### 10.8 Hapus Akun
+
+`DELETE /api/v1/profile` — **auth**
+
+Menghapus akun beserta seluruh token, pin, board, komentar, like, follow,
+notifikasi, dan pesan milik user. Setelah berhasil, semua token tidak berlaku.
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Account deleted successfully."
 }
 ```
 
@@ -1225,7 +1377,312 @@ Board privat disembunyikan kecuali milik user yang login.
 
 ---
 
-## 12. Ringkasan Endpoint
+## 12. Likes
+
+### 12.1 Sukai Pin
+
+`POST /api/v1/pins/{pin}/like` — **auth**
+
+Idempoten: memanggil ulang tidak menggandakan like atau notifikasi.
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Pin liked successfully.",
+  "data": {
+    "likes_count": 46,
+    "is_liked": true
+  }
+}
+```
+
+---
+
+### 12.2 Batalkan Suka
+
+`DELETE /api/v1/pins/{pin}/like` — **auth**
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Pin unliked successfully.",
+  "data": {
+    "likes_count": 45,
+    "is_liked": false
+  }
+}
+```
+
+---
+
+### 12.3 Pin yang Saya Sukai
+
+`GET /api/v1/likes` — **auth**
+
+**Query params:** `per_page` (default 15, maks. 50), `page`
+
+**Response `200`** — envelope paginasi berisi `data: [ { "...Pin..." } ]`.
+
+---
+
+## 13. Komentar
+
+### 13.1 Daftar Komentar Pin
+
+`GET /api/v1/pins/{pin}/comments` — publik
+
+Komentar diurutkan dari yang paling lama. Respons **tidak** dipaginasi.
+
+```json
+{
+  "success": true,
+  "message": "Comments retrieved successfully.",
+  "data": [
+    {
+      "id": 18,
+      "pin_id": 26,
+      "text": "Sudut ini terasa tenang. Suka sekali.",
+      "user": { "...User..." },
+      "created_at": "2026-10-18T10:20:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 13.2 Tambah Komentar
+
+`POST /api/v1/pins/{pin}/comments` — **auth**
+
+```json
+{
+  "text": "Inspirasinya dapat banget."
+}
+```
+
+| Field | Tipe | Wajib | Aturan |
+| --- | --- | --- | --- |
+| `text` | string | ya | 1–1000 karakter |
+
+**Response `201`** — `data` berisi objek Comment. Pemilik pin menerima notifikasi
+bertipe `comment` (tidak dikirim bila mengomentari pin sendiri).
+
+---
+
+### 13.3 Hapus Komentar
+
+`DELETE /api/v1/comments/{comment}` — **auth** (hanya penulis komentar)
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Comment deleted successfully."
+}
+```
+
+---
+
+## 14. Follow dan Pengguna
+
+### 14.1 Cari Pengguna
+
+`GET /api/v1/users` — publik (opsional login untuk `is_following`)
+
+**Query params:** `q` (opsional; mencari nama, username, atau bio), `per_page`, `page`
+
+**Response `200`** — envelope paginasi berisi `data: [ { "...User..." } ]`.
+
+---
+
+### 14.2 Ikuti Pengguna
+
+`POST /api/v1/users/{username}/follow` — **auth**
+
+Idempoten. Tidak boleh mengikuti diri sendiri (`422`).
+
+**Response `200`** — `data` berisi User dengan `is_following: true` dan
+`followers_count` terbaru. Pengguna yang diikuti menerima notifikasi `follow`.
+
+---
+
+### 14.3 Berhenti Mengikuti
+
+`DELETE /api/v1/users/{username}/follow` — **auth**
+
+**Response `200`** — `data` berisi User dengan `is_following: false`.
+
+---
+
+### 14.4 Daftar yang Saya Ikuti
+
+`GET /api/v1/following` — **auth**
+
+**Query params:** `per_page`, `page`
+
+**Response `200`** — envelope paginasi berisi `data: [ { "...User..." } ]`.
+
+---
+
+## 15. Notifikasi
+
+### 15.1 Daftar Notifikasi
+
+`GET /api/v1/notifications` — **auth**
+
+**Query params:** `per_page` (default 30, maks. 50), `page`
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Notifications retrieved successfully.",
+  "data": [ { "...Notification..." } ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 30,
+    "last_page": 1,
+    "total": 3,
+    "from": 1,
+    "to": 3,
+    "has_more_pages": false,
+    "unread_count": 2
+  }
+}
+```
+
+---
+
+### 15.2 Tandai Satu Notifikasi Dibaca
+
+`POST /api/v1/notifications/{notification}/read` — **auth** (hanya milik sendiri)
+
+**Response `200`** — `data` berisi Notification dengan `is_read: true`.
+
+---
+
+### 15.3 Tandai Semua Dibaca
+
+`POST /api/v1/notifications/read-all` — **auth**
+
+```json
+{
+  "success": true,
+  "message": "All notifications marked as read."
+}
+```
+
+---
+
+### 15.4 Hapus Notifikasi
+
+`DELETE /api/v1/notifications/{notification}` — **auth** (hanya milik sendiri)
+
+```json
+{
+  "success": true,
+  "message": "Notification deleted successfully."
+}
+```
+
+---
+
+## 16. Pesan dan Percakapan
+
+### 16.1 Daftar Percakapan
+
+`GET /api/v1/conversations` — **auth**
+
+Tidak dipaginasi. Satu item per lawan bicara, diurutkan dari pesan terbaru.
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Conversations retrieved successfully.",
+  "data": [
+    {
+      "user": { "...User..." },
+      "last_message": { "...Message..." },
+      "unread_count": 2
+    }
+  ]
+}
+```
+
+---
+
+### 16.2 Riwayat Pesan dengan Pengguna
+
+`GET /api/v1/conversations/{username}` — **auth**
+
+Mengembalikan maksimal 200 pesan, diurutkan dari yang paling lama.
+Membuka percakapan dengan diri sendiri menghasilkan `422`.
+
+**Response `200`** — `data: [ { "...Message..." } ]`.
+
+---
+
+### 16.3 Kirim Pesan
+
+`POST /api/v1/conversations/{username}/messages` — **auth**
+
+```json
+{
+  "body": "Halo! Boleh simpan pin inspirasimu?"
+}
+```
+
+| Field | Tipe | Wajib | Aturan |
+| --- | --- | --- | --- |
+| `body` | string | ya | 1–2000 karakter |
+
+**Response `201`** — `data` berisi Message. Penerima menerima notifikasi `message`.
+
+---
+
+### 16.4 Tandai Percakapan Dibaca
+
+`POST /api/v1/conversations/{username}/read` — **auth**
+
+Menandai semua pesan masuk dari user tersebut sebagai dibaca.
+
+```json
+{
+  "success": true,
+  "message": "Conversation marked as read."
+}
+```
+
+---
+
+## 17. Media Publik dan CORS
+
+`GET /media/{path}` — publik, tanpa prefix `/api/v1`
+
+Menyajikan file dari disk `public` (`storage/app/public`). Contoh:
+
+```
+GET http://127.0.0.1:8000/media/pins/demo-abc.jpg
+GET http://127.0.0.1:8000/media/avatars/xyz.jpg
+```
+
+- Tidak memerlukan token.
+- Respons menyertakan `Access-Control-Allow-Origin: *` sehingga aman dimuat
+  dari Flutter Web pada origin berbeda.
+- `config/cors.php` mengizinkan path `api/*`, `sanctum/csrf-cookie`, dan `media/*`.
+
+---
+
+## 18. Ringkasan Endpoint
 
 | # | Method | Endpoint | Auth | Keterangan |
 | --- | --- | --- | --- | --- |
@@ -1233,38 +1690,63 @@ Board privat disembunyikan kecuali milik user yang login.
 | 2 | POST | `/auth/login` | – | Login + token |
 | 3 | POST | `/auth/logout` | ✔ | Cabut token aktif |
 | 4 | GET | `/auth/me` | ✔ | User saat ini |
-| 5 | GET | `/pins` | – | Feed pins |
-| 6 | GET | `/pins/{pin}` | – | Detail pin |
-| 7 | POST | `/pins` | ✔ | Upload pin |
+| 5 | GET | `/pins` | – / ✔ | Feed pins (token opsional) |
+| 6 | GET | `/pins/{pin}` | – / ✔ | Detail pin (token opsional) |
+| 7 | POST | `/pins` | ✔ | Upload pin / `image_url` |
 | 8 | PUT/PATCH | `/pins/{pin}` | ✔ | Update pin |
 | 9 | DELETE | `/pins/{pin}` | ✔ | Hapus pin |
-| 10 | GET | `/search` | – | Cari pin (`?q=`) |
-| 11 | GET | `/boards` | ✔ | Board milik saya |
-| 12 | POST | `/boards` | ✔ | Buat board |
-| 13 | GET | `/boards/{board}` | – | Detail board |
-| 14 | PUT/PATCH | `/boards/{board}` | ✔ | Update board |
-| 15 | DELETE | `/boards/{board}` | ✔ | Hapus board |
-| 16 | GET | `/boards/{board}/pins` | – | Pin di board |
-| 17 | POST | `/pins/{pin}/save` | ✔ | Simpan pin ke board |
-| 18 | DELETE | `/pins/{pin}/save` | ✔ | Hapus pin dari board |
-| 19 | GET | `/saves` | ✔ | Pin yang saya simpan |
-| 20 | GET | `/users/{username}` | – | Profil publik |
-| 21 | GET | `/users/{username}/pins` | – | Pin milik user |
-| 22 | GET | `/users/{username}/boards` | – | Board milik user |
-| 23 | GET | `/profile` | ✔ | Profil saya |
-| 24 | PUT/PATCH | `/profile` | ✔ | Update profil |
-| 25 | POST | `/profile/avatar` | ✔ | Upload avatar |
-| 26 | GET | `/settings` | ✔ | Lihat settings |
-| 27 | PUT/PATCH | `/settings` | ✔ | Update settings |
-| 28 | PUT/PATCH | `/settings/password` | ✔ | Ganti password |
+| 10 | GET | `/search` | – / ✔ | Cari pin (`?q=`) |
+| 11 | GET | `/users` | – / ✔ | Cari profil (`?q=`) |
+| 12 | GET | `/users/{username}` | – / ✔ | Profil publik |
+| 13 | GET | `/users/{username}/pins` | – / ✔ | Pin milik user |
+| 14 | GET | `/users/{username}/boards` | – / ✔ | Board milik user |
+| 15 | POST | `/users/{username}/follow` | ✔ | Ikuti user |
+| 16 | DELETE | `/users/{username}/follow` | ✔ | Berhenti mengikuti |
+| 17 | GET | `/following` | ✔ | Daftar yang diikuti |
+| 18 | GET | `/boards` | ✔ | Board milik saya |
+| 19 | POST | `/boards` | ✔ | Buat board |
+| 20 | GET | `/boards/{board}` | – / ✔ | Detail board |
+| 21 | PUT/PATCH | `/boards/{board}` | ✔ | Update board |
+| 22 | DELETE | `/boards/{board}` | ✔ | Hapus board |
+| 23 | GET | `/boards/{board}/pins` | – / ✔ | Pin di board |
+| 24 | POST | `/pins/{pin}/save` | ✔ | Simpan pin ke board |
+| 25 | DELETE | `/pins/{pin}/save` | ✔ | Hapus pin dari board |
+| 26 | GET | `/saves` | ✔ | Pin yang saya simpan |
+| 27 | POST | `/pins/{pin}/like` | ✔ | Sukai pin |
+| 28 | DELETE | `/pins/{pin}/like` | ✔ | Batalkan suka |
+| 29 | GET | `/likes` | ✔ | Pin yang saya sukai |
+| 30 | GET | `/pins/{pin}/comments` | – / ✔ | Komentar sebuah pin |
+| 31 | POST | `/pins/{pin}/comments` | ✔ | Tambah komentar |
+| 32 | DELETE | `/comments/{comment}` | ✔ | Hapus komentar sendiri |
+| 33 | GET | `/notifications` | ✔ | Daftar notifikasi |
+| 34 | POST | `/notifications/{notification}/read` | ✔ | Tandai satu dibaca |
+| 35 | POST | `/notifications/read-all` | ✔ | Tandai semua dibaca |
+| 36 | DELETE | `/notifications/{notification}` | ✔ | Hapus notifikasi |
+| 37 | GET | `/conversations` | ✔ | Daftar percakapan |
+| 38 | GET | `/conversations/{username}` | ✔ | Riwayat pesan |
+| 39 | POST | `/conversations/{username}/messages` | ✔ | Kirim pesan |
+| 40 | POST | `/conversations/{username}/read` | ✔ | Tandai dibaca |
+| 41 | GET | `/profile` | ✔ | Profil saya |
+| 42 | PUT/PATCH | `/profile` | ✔ | Update profil |
+| 43 | DELETE | `/profile` | ✔ | Hapus akun |
+| 44 | POST | `/profile/avatar` | ✔ | Upload avatar |
+| 45 | DELETE | `/profile/avatar` | ✔ | Hapus avatar |
+| 46 | GET | `/settings` | ✔ | Lihat settings |
+| 47 | PUT/PATCH | `/settings` | ✔ | Update settings |
+| 48 | PUT/PATCH | `/settings/password` | ✔ | Ganti password |
+| 49 | GET | `/media/{path}` | – | File publik + CORS (di luar `/api/v1`) |
+
+> `– / ✔` berarti endpoint publik yang tetap memakai Bearer token bila dikirim.
 
 ---
 
-## 13. Akun Demo
+## 19. Akun Demo
 
 ```
 email:    demo@pinspire.test
 password: password
 ```
 
-Berisi 5 user, beberapa board, 40 pin, dan sejumlah save untuk pengujian feed.
+Data seeder berisi 5 user (demo + 4 kreator), 12 board, 40 pin, 30 like,
+18 komentar, 10 follow, 4 pesan, dan 3 notifikasi untuk pengujian feed.
+Kreator: `nara.studio`, `raka.jalan`, `alya.collects`, `mika.atelier`.

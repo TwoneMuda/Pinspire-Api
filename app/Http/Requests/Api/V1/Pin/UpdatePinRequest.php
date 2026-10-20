@@ -23,9 +23,16 @@ class UpdatePinRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'image' => ['sometimes', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'image' => ['sometimes', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'image_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
             'title' => ['sometimes', 'nullable', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'category' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'vibe' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'tags' => ['sometimes', 'nullable', 'array', 'max:10'],
+            'tags.*' => ['string', 'max:30'],
+            'palette' => ['sometimes', 'nullable', 'array', 'max:5'],
+            'palette.*' => ['integer', 'min:0'],
             'source_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
         ];
     }

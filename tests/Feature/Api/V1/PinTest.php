@@ -66,7 +66,7 @@ class PinTest extends TestCase
             'title' => 'Sunset',
             'description' => 'A nice sunset',
             'source_url' => 'https://example.com/sunset',
-            'image' => UploadedFile::fake()->image('sunset.jpg', 800, 600),
+            'image' => $this->fakePng('sunset.png', 800, 600),
         ], ['Accept' => 'application/json']);
 
         $response->assertCreated()

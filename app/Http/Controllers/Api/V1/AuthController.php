@@ -64,7 +64,9 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->loadCount(['pins', 'boards']);
+        $user = User::query()
+            ->withViewerData($request->user())
+            ->findOrFail($request->user()->id);
 
         return $this->success('Authenticated user retrieved successfully.', (new UserResource($user))->resolve());
     }
@@ -76,7 +78,7 @@ class AuthController extends Controller
      */
     private function tokenPayload(User $user, ?string $deviceName): array
     {
-        $user->loadCount(['pins', 'boards']);
+        $user->loadCount(['pins', 'boards', 'followers', 'following']);
 
         return [
             'user' => (new UserResource($user, includeEmail: true))->resolve(),

@@ -8,6 +8,8 @@ use App\Http\Resources\SaveResource;
 use App\Models\Board;
 use App\Models\Pin;
 use App\Models\Save;
+use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,7 +51,21 @@ class SaveController extends Controller
             $board->update(['cover_image_path' => $pin->image_path]);
         }
 
-        $save->load(['board', 'pin.user']);
+        if ($save->wasRecentlyCreated) {
+            NotificationService::push(
+                recipient: User::query()->findOrFail($pin->user_id),
+                actor: $request->user(),
+                type: 'save',
+                title: "{$request->user()->name} menyimpan pinmu",
+                body: $pin->title,
+                targetType: 'pin',
+                targetId: $pin->id,
+                imagePath: $pin->image_path,
+            );
+        }
+
+        $save->load(['board.user', 'board.pins:id', 'pin.user']);
+        $save->board->loadCount('pins');
         $save->pin->setAttribute('is_saved_by_me', true);
         $save->pin->loadCount('saves');
 

@@ -34,17 +34,32 @@ class PinController extends Controller
      */
     public function store(StorePinRequest $request): JsonResponse
     {
-        $file = $request->file('image');
-        [$width, $height] = $this->imageDimensions($file->getRealPath());
-
-        $pin = $request->user()->pins()->create([
-            'title' => $request->input('title'),
-            'description' => $request->input('description'),
-            'source_url' => $request->input('source_url'),
-            'image_path' => $file->store('pins', 'public'),
-            'image_width' => $width,
-            'image_height' => $height,
+        $attributes = $request->safe()->only([
+            'title',
+            'description',
+            'category',
+            'vibe',
+            'tags',
+            'palette',
+            'source_url',
+            'image_url',
         ]);
+
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            [$width, $height] = $this->imageDimensions($file->getRealPath());
+
+            $attributes['image_path'] = $file->store('pins', 'public');
+            $attributes['image_url'] = null;
+            $attributes['image_width'] = $width;
+            $attributes['image_height'] = $height;
+        } else {
+            $attributes['image_path'] = null;
+            $attributes['image_width'] = null;
+            $attributes['image_height'] = null;
+        }
+
+        $pin = $request->user()->pins()->create($attributes);
 
         return $this->success('Pin uploaded successfully.', $this->resolvePin($pin->load('user'), $request), status: 201);
     }
@@ -62,17 +77,37 @@ class PinController extends Controller
      */
     public function update(UpdatePinRequest $request, Pin $pin): JsonResponse
     {
-        $attributes = $request->safe()->only(['title', 'description', 'source_url']);
+        $attributes = $request->safe()->only([
+            'title',
+            'description',
+            'category',
+            'vibe',
+            'tags',
+            'palette',
+            'source_url',
+            'image_url',
+        ]);
 
         if ($request->hasFile('image')) {
             $file = $request->file('image');
             [$width, $height] = $this->imageDimensions($file->getRealPath());
 
             $attributes['image_path'] = $file->store('pins', 'public');
+            $attributes['image_url'] = null;
             $attributes['image_width'] = $width;
             $attributes['image_height'] = $height;
 
-            Storage::disk('public')->delete($pin->image_path);
+            if ($pin->image_path !== null) {
+                Storage::disk('public')->delete($pin->image_path);
+            }
+        } elseif ($request->has('image_url') && $request->input('image_url') !== null) {
+            $attributes['image_path'] = null;
+            $attributes['image_width'] = null;
+            $attributes['image_height'] = null;
+
+            if ($pin->image_path !== null) {
+                Storage::disk('public')->delete($pin->image_path);
+            }
         }
 
         $pin->update($attributes);
@@ -83,11 +118,13 @@ class PinController extends Controller
     /**
      * Delete a pin owned by the authenticated user.
      */
-    public function destroy(Request $request, Pin $pin): JsonResponse
+    public function destroy(Pin $pin): JsonResponse
     {
         $this->authorize('delete', $pin);
 
-        Storage::disk('public')->delete($pin->image_path);
+        if ($pin->image_path !== null) {
+            Storage::disk('public')->delete($pin->image_path);
+        }
 
         $pin->delete();
 
@@ -101,20 +138,13 @@ class PinController extends Controller
      */
     private function resolvePin(Pin $pin, Request $request): array
     {
-        $pin->loadCount('saves');
-        $pin->setAttribute('is_saved_by_me', $this->isSavedByViewer($pin, $request));
-
-        return (new PinResource($pin))->resolve();
-    }
-
-    /**
-     * Determine whether the current viewer saved the given pin.
-     */
-    private function isSavedByViewer(Pin $pin, Request $request): bool
-    {
         $viewer = $request->user();
 
-        return $viewer !== null && $pin->saves()->where('user_id', $viewer->id)->exists();
+        $pin->loadCount(['saves', 'likes', 'comments']);
+        $pin->setAttribute('is_saved_by_me', $viewer !== null && $pin->saves()->where('user_id', $viewer->id)->exists());
+        $pin->setAttribute('is_liked_by_me', $viewer !== null && $pin->likes()->where('user_id', $viewer->id)->exists());
+
+        return (new PinResource($pin))->resolve();
     }
 
     /**

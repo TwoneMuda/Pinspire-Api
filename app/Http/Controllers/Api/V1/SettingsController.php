@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Settings\UpdatePasswordRequest;
 use App\Http\Requests\Api\V1\Settings\UpdateSettingsRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -68,7 +69,9 @@ class SettingsController extends Controller
      */
     private function settingsPayload(Request $request): array
     {
-        $user = $request->user()->loadCount(['pins', 'boards']);
+        $user = User::query()
+            ->withViewerData($request->user())
+            ->findOrFail($request->user()->id);
 
         return [
             'user' => (new UserResource($user))->resolve(),

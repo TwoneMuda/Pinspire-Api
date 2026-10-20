@@ -23,6 +23,7 @@ class BoardController extends Controller
         $boards = Board::query()
             ->where('user_id', $request->user()->id)
             ->with('user')
+            ->with('pins:id')
             ->withCount('pins')
             ->latest()
             ->paginate($this->perPage($request));
@@ -44,7 +45,7 @@ class BoardController extends Controller
             'is_private' => $request->boolean('is_private'),
         ]);
 
-        $board->load('user')->loadCount('pins');
+        $board->load('user')->load('pins:id')->loadCount('pins');
 
         return $this->success('Board created successfully.', (new BoardResource($board))->resolve(), status: 201);
     }
@@ -56,7 +57,7 @@ class BoardController extends Controller
     {
         $this->authorize('view', $board);
 
-        $board->load('user')->loadCount('pins');
+        $board->load('user')->load('pins:id')->loadCount('pins');
 
         return $this->success('Board retrieved successfully.', (new BoardResource($board))->resolve());
     }
@@ -73,7 +74,7 @@ class BoardController extends Controller
         }
 
         $board->update($attributes);
-        $board->load('user')->loadCount('pins');
+        $board->load('user')->load('pins:id')->loadCount('pins');
 
         return $this->success('Board updated successfully.', (new BoardResource($board))->resolve());
     }

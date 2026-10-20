@@ -17,11 +17,33 @@ use Illuminate\Support\Facades\Storage;
 class ProfileController extends Controller
 {
     /**
+     * Search public profiles.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $term = trim($request->string('q')->toString());
+
+        $users = User::query()
+            ->withViewerData($request->user())
+            ->when($term !== '', fn (Builder $query) => $query->where(function (Builder $query) use ($term): void {
+                $query->where('name', 'like', "%{$term}%")
+                    ->orWhere('username', 'like', "%{$term}%")
+                    ->orWhere('bio', 'like', "%{$term}%");
+            }))
+            ->orderBy('name')
+            ->paginate($this->perPage($request));
+
+        return $this->paginated('Users retrieved successfully.', $users, UserResource::class);
+    }
+
+    /**
      * Display the authenticated user's own profile.
      */
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->loadCount(['pins', 'boards']);
+        $user = User::query()
+            ->withViewerData($request->user())
+            ->findOrFail($request->user()->id);
 
         return $this->success('Profile retrieved successfully.', (new UserResource($user))->resolve());
     }
@@ -29,9 +51,11 @@ class ProfileController extends Controller
     /**
      * Display a public profile by username.
      */
-    public function show(User $user): JsonResponse
+    public function show(Request $request, User $user): JsonResponse
     {
-        $user->loadCount(['pins', 'boards']);
+        $user = User::query()
+            ->withViewerData($request->user())
+            ->findOrFail($user->id);
 
         return $this->success('Profile retrieved successfully.', (new UserResource($user))->resolve());
     }
@@ -60,6 +84,7 @@ class ProfileController extends Controller
         $boards = $user->boards()
             ->when(! $isOwner, fn (Builder $query) => $query->where('is_private', false))
             ->with('user')
+            ->with('pins:id')
             ->withCount('pins')
             ->latest()
             ->paginate($this->perPage($request));
@@ -75,7 +100,9 @@ class ProfileController extends Controller
         $user = $request->user();
         $user->update($request->safe()->only(['name', 'username', 'bio', 'website']));
 
-        $user->loadCount(['pins', 'boards']);
+        $user = User::query()
+            ->withViewerData($request->user())
+            ->findOrFail($user->id);
 
         return $this->success('Profile updated successfully.', (new UserResource($user))->resolve());
     }
@@ -94,8 +121,43 @@ class ProfileController extends Controller
         }
 
         $user->update(['avatar' => $path]);
-        $user->loadCount(['pins', 'boards']);
+
+        $user = User::query()
+            ->withViewerData($request->user())
+            ->findOrFail($user->id);
 
         return $this->success('Avatar updated successfully.', (new UserResource($user))->resolve());
+    }
+
+    /**
+     * Remove the authenticated user's avatar.
+     */
+    public function destroyAvatar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->avatar !== null) {
+            Storage::disk('public')->delete($user->avatar);
+            $user->update(['avatar' => null]);
+        }
+
+        $user = User::query()
+            ->withViewerData($request->user())
+            ->findOrFail($user->id);
+
+        return $this->success('Avatar removed successfully.', (new UserResource($user))->resolve());
+    }
+
+    /**
+     * Delete the authenticated user's account and all of their content.
+     */
+    public function destroy(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $user->tokens()->delete();
+        $user->delete();
+
+        return $this->success('Account deleted successfully.');
     }
 }
