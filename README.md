@@ -83,31 +83,10 @@ dan sejumlah save untuk mengisi feed.
 php artisan test
 ```
 
-56 feature test mencakup seluruh endpoint (auth, pins, boards, saves, search,
-profile, settings) termasuk respons error 401/403/404/422.
+Nama Anggota:
 
----
-
-## Struktur Singkat
-
-```
-routes/api.php                          # 28 route di bawah prefix /v1
-app/Http/Controllers/Api/V1/            # 7 controller API
-app/Http/Requests/Api/V1/               # Form Request (aturan validasi)
-app/Http/Resources/                     # Bentuk JSON: User, Pin, Board, Save
-app/Models/                             # User, Pin, Board, Save
-app/Policies/                           # PinPolicy, BoardPolicy
-bootstrap/app.php                       # Handler exception JSON global
-database/seeders/DemoContentSeeder.php  # Data demo + generate gambar
-database/migrations/                    # Skema tabel
-tests/Feature/Api/V1/                   # Feature test
-```
-
----
-
-## Catatan Keamanan
-
-- Endpoint `auth/register` dan `auth/login` dibatasi 6 permintaan/menit (throttle).
-- `login` selalu menjawab dengan pesan generik agar tidak membocorkan keberadaan email.
-- Board privat hanya dapat dilihat oleh pemiliknya.
-- Ganti password mencabut seluruh token/sesi lain.
+(135) ADHIPRAMANA SAIFULLAH ARIF
+(123) SYAHRINDRA ALWI ZAKARIA
+(129) TEUKU RIFQI AR RAFI'
+(110) RAFIKHAR LUCIANO
+(138) BELVA DZAKWAN MAULA RAMADHAN
